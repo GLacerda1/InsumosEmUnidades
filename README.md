@@ -1,38 +1,101 @@
-## Estruturas e Algoritmos Utilizados
+# Controle de Estoque com Programação Dinâmica
 
-Para o controle de estoque com Programação Dinâmica, foram implementadas duas abordagens principais e algumas estruturas auxiliares. Cada uma contribuiu para a solução do problema real das unidades de diagnóstico:
+Este projeto aplica **Programação Dinâmica (PD)** para definir uma **política ótima de reposição de estoque** em unidades de diagnóstico médico, onde o consumo diário de insumos (reagentes e descartáveis) é incerto e pouco registrado.  
+
+O objetivo é **minimizar o custo total esperado**, equilibrando custos de compra, armazenagem, pedidos e faltas, ao longo de um horizonte finito de tempo (ex: 30 dias).
+
+---
+
+## Estrutura do Modelo
+
+| Elemento | Descrição |
+|-----------|------------|
+| **Estado (sₜ)** | Nível de estoque disponível no início do dia |
+| **Ação (aₜ)** | Quantidade pedida (reposição) no início do dia |
+| **Demanda (Dₜ)** | Consumo diário incerto, modelado como variável aleatória |
+| **Transição de estado** | O estoque do próximo dia depende de `sₜ + aₜ - Dₜ` |
+| **Custos considerados** | Pedido fixo (K), custo unitário (c), armazenagem (h), falta (p) |
+
+**Objetivo:** encontrar a política de reposição que **minimiza o custo total esperado**, equilibrando **rupturas** (falta de insumos) e **desperdício** (estoque excessivo).
+
+---
+
+## Algoritmos Implementados
 
 ### 1. Programação Dinâmica Recursiva (Top-Down)
-- **Como foi usada:** implementada como uma função recursiva que calcula o custo ótimo a partir do estoque atual e do dia atual.  
-- **Contexto do problema:** permite modelar diretamente a equação de Bellman, considerando a demanda estocástica e os custos de pedido, armazenagem e falta.  
-- **Benefício:** fácil de entender e validar; cada subproblema é resolvido de forma intuitiva.
 
-### 2. Memorização (`@lru_cache`)
-- **Como foi usada:** armazenou os resultados de subproblemas já resolvidos na versão recursiva.  
-- **Contexto do problema:** evita recalcular o custo de estados/ações já analisados, acelerando significativamente a execução.  
-- **Benefício:** mantém a implementação recursiva eficiente mesmo para horizontes maiores.
+**Descrição:**  
+Implementa a equação de Bellman de forma direta e intuitiva.  
+A cada chamada, o algoritmo considera o custo imediato (pedido, armazenagem e falta) e o custo futuro esperado.  
 
-### 3. Programação Dinâmica Iterativa (Bottom-Up)
-- **Como foi usada:** constrói uma tabela de valores de estoque para cada dia, calculando o custo mínimo de forma iterativa.  
-- **Contexto do problema:** fornece os mesmos resultados da versão recursiva de forma mais eficiente.  
-- **Benefício:** ideal para implementação prática e simulações em grande escala, sem risco de estouro de pilha.
+**Como funciona:**
+1. Para cada dia e nível de estoque, testa todas as possíveis quantidades a pedir (`aₜ`);
+2. Calcula o custo total esperado de cada ação, considerando a distribuição da demanda;
+3. Escolhe a ação que gera o **menor custo esperado**;
+4. Armazena o resultado usando **memorização (`@lru_cache`)** para evitar recomputações.
 
-### 4. Loops sobre ações e estados
-- **Como foi usada:** para cada estado de estoque, testamos todas as quantidades de pedido possíveis.  
-- **Contexto do problema:** permite identificar a **política ótima** de reposição para cada nível de estoque e dia.  
-- **Benefício:** garante que o algoritmo explore todas as possibilidades e encontre a ação de menor custo.
+**Aplicação no problema:**  
+Essa abordagem é útil para **entender e validar o modelo teórico** — reproduz fielmente a formulação matemática da decisão ótima.
 
-### 5. Simulação Monte Carlo
-- **Como foi usada:** aplicamos a política ótima em múltiplos cenários de demanda aleatória.  
-- **Contexto do problema:** valida empiricamente o comportamento do sistema sob incerteza, estimando o custo médio esperado.  
-- **Benefício:** permite avaliar robustez e risco operacional da política de estoque.
+---
 
-### 6. Uso de `numpy`
-- **Como foi usada:** para armazenar tabelas de valores e calcular custos médios de forma vetorizada.  
-- **Contexto do problema:** melhora desempenho em operações numéricas grandes, facilitando manipulação de arrays de estoque e ações.  
-- **Benefício:** otimiza execução, principalmente na versão iterativa e na simulação Monte Carlo.
+### 2. Programação Dinâmica Iterativa (Bottom-Up)
 
-### Resultado
-- Ambas as abordagens (recursiva e iterativa) **produzem a mesma política ótima**, garantindo consistência entre teoria e prática.  
-- Cada estrutura foi escolhida para **equilibrar clareza, performance e robustez** no contexto de controle de estoques.
+**Descrição:**  
+Implementa a mesma lógica, mas de forma iterativa — calculando os custos **de trás para frente no tempo**.  
+Ao invés de recursão, constrói uma **tabela `V[t][s]`** que guarda o custo mínimo esperado para cada estado (dia e estoque).
+
+**Como funciona:**
+1. Inicializa o custo no último dia como zero (sem horizonte futuro);
+2. Para cada dia `t` (em ordem reversa) e nível de estoque `s`:
+   - Avalia todas as decisões possíveis (`aₜ`);
+   - Calcula o custo médio esperado após a demanda;
+   - Atualiza `V[t][s]` com o menor custo encontrado.
+3. Retorna a **política ótima** e o **custo total mínimo**.
+
+**Aplicação no problema:**  
+A versão iterativa é **mais eficiente e escalável**, ideal para cenários reais (como 30+ dias e dezenas de níveis de estoque).
+
+---
+
+### 3. Validação da Equivalência
+
+Para garantir a consistência, o código compara os resultados das duas abordagens:
+- Máxima diferença entre V_rec e V_iter: 0.0000000...
+- Desacordos na política: 0
+
+
+As duas versões produzem **políticas idênticas** e **custos iguais**, confirmando a correção matemática do modelo.
+
+---
+
+## Interpretação dos Resultados
+
+- Aumentar **p (custo de falta)** → reduz rupturas, eleva estoques de segurança.  
+- Aumentar **h (custo de armazenagem)** → reduz estoques, evita desperdícios.  
+- Aumentar **K (custo fixo de pedido)** → reduz frequência de pedidos.  
+
+Esses parâmetros permitem **personalizar o comportamento do sistema** conforme o perfil de cada unidade de diagnóstico.
+
+---
+
+## Tecnologias Utilizadas
+
+- **NumPy** (operações vetorizadas e tabelas de custos)  
+- **functools.lru_cache** (otimização da recursão)  
+- **Matplotlib** (visualização dos resultados e políticas)  
+
+---
+
+## Conclusão
+  
+O modelo desenvolvido possibilita:
+
+- Melhor **visibilidade do consumo real**;  
+- **Redução de custos** com falta e excesso de insumos;  
+- **Automatização da decisão de reposição** de forma ótima e previsível.  
+
+O método é flexível e pode ser ajustado conforme os custos, políticas e perfis de consumo de cada laboratório ou unidade hospitalar.
+
+
 
